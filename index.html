@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>I·M·8 Weekly Report Generator</title>
+    <meta name="description" content="Premium weekly affiliate report generator for I·M·8 nutrition brand. Run entirely in your browser.">
+    <link rel="stylesheet" href="style.css">
+    <link href='https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css' rel='stylesheet'>
+    
+    <!-- Client-side Processing Libraries -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.2/papaparse.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.3.0/exceljs.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
+    <script src="https://unpkg.com/docx@8.1.0/build/index.js"></script>
+</head>
+<body>
+    <header class="main-header">
+        <div class="header-content">
+            <div class="logo"><h1>I·M·8</h1></div>
+            <div class="header-nav">
+                <span class="nav-text">• WEEKLY REPORT GENERATOR (SERVERLESS)</span>
+            </div>
+        </div>
+    </header>
+
+    <div class="app-container">
+        <main id="main-content">
+            <!-- Hero Removed -->
+
+            <!-- Upload Panel -->
+            <section class="upload-section" id="upload-panel">
+                <div class="card">
+                    <form id="report-form" autocomplete="off">
+                        <div class="drag-drop-zone" id="drop-zone">
+                            <input type="file" id="csv-file" accept=".csv" required hidden>
+                            <i class='bx bxs-cloud-upload upload-icon'></i>
+                            <h3>Upload Weekly Data</h3>
+                            <p>Drag & drop your Social Snowball CSV here or <span class="browse-btn">browse files</span></p>
+                            <div class="file-name-display" id="file-name-display"></div>
+                        </div>
+
+                        <div class="settings-grid">
+                            <div class="input-group">
+                                <label for="top1">Top 1 Affiliate</label>
+                                <input type="text" id="top1" name="top1" placeholder="James DiNicolantonio">
+                                <small>Defaults to James DiNicolantonio</small>
+                            </div>
+                            <div class="input-group">
+                                <label for="format">Report Format</label>
+                                <select id="format" name="format">
+                                    <option value="docx">Microsoft Word (.docx)</option>
+                                    <option value="excel">Microsoft Excel (.xlsx)</option>
+                                </select>
+                                <small>Select your preferred export</small>
+                            </div>
+                        </div>
+
+                        <div class="form-actions">
+                            <button type="submit" class="btn-primary" id="generate-btn">
+                                <i class='bx bx-analyse btn-icon'></i> GENERATE REPORT
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </section>
+
+            <!-- Loading -->
+            <section class="loading-section hidden" id="loading-panel">
+                <div class="progress-container">
+                    <div class="progress-bar-bg"><div class="progress-bar-fill"></div></div>
+                </div>
+                <h2>Processing Locally...</h2>
+                <p>Data stays on your computer</p>
+            </section>
+
+            <!-- Dashboard -->
+            <section class="dashboard-section hidden" id="dashboard-panel">
+                <div class="dashboard-header">
+                    <div class="dash-title">
+                        <h2>Weekly Affiliate Report</h2>
+                        <span class="badge"><i class='bx bx-calendar'></i> <span id="dash-week-label">—</span></span>
+                    </div>
+                    <div class="dash-actions">
+                        <button class="btn-ghost" id="btn-copy-slack" title="Copy for Slack">
+                            <i class='bx bxl-slack btn-icon'></i> COPY FOR SLACK
+                        </button>
+                        <button class="btn-secondary" id="btn-back">
+                            <i class='bx bx-refresh btn-icon'></i> NEW REPORT
+                        </button>
+                        <button class="btn-primary" id="btn-download">
+                            <i class='bx bxs-download btn-icon'></i> <span id="download-text">DOWNLOAD REPORT</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Stats Grid -->
+                <div class="stats-grid">
+                    <div class="stat-card anim-stagger">
+                        <p class="stat-label">Total Revenue</p>
+                        <h3 class="stat-value" id="val-revenue">$0.00</h3>
+                    </div>
+                    <div class="stat-card anim-stagger">
+                        <p class="stat-label">Total Commission</p>
+                        <h3 class="stat-value" id="val-commission">$0.00</h3>
+                    </div>
+                    <div class="stat-card anim-stagger">
+                        <p class="stat-label">Conversions</p>
+                        <h3 class="stat-value" id="val-conversions">0</h3>
+                    </div>
+                    <div class="stat-card highlight-card anim-stagger">
+                        <p class="stat-label">Total Profit</p>
+                        <h3 class="stat-value" id="val-profit">$0.00</h3>
+                    </div>
+                </div>
+
+                <div class="stats-grid" style="margin-top: 2rem;">
+                    <div class="stat-card anim-stagger">
+                        <p class="stat-label">Without Top 1 Revenue</p>
+                        <h3 class="stat-value" id="val-excl-revenue">$0.00</h3>
+                    </div>
+                    <div class="stat-card anim-stagger">
+                        <p class="stat-label">Without Top 1 Commission</p>
+                        <h3 class="stat-value" id="val-excl-commission">$0.00</h3>
+                    </div>
+                    <div class="stat-card anim-stagger">
+                        <p class="stat-label">Without Top 1 Conversions</p>
+                        <h3 class="stat-value" id="val-excl-conversions">0</h3>
+                    </div>
+                    <div class="stat-card highlight-card anim-stagger">
+                        <p class="stat-label">Without Top 1 Profit</p>
+                        <h3 class="stat-value" id="val-excl-profit">$0.00</h3>
+                    </div>
+                </div>
+
+                <div class="top1-info anim-stagger" style="margin-top: 1rem; text-align: center; color: rgba(240, 237, 245, 0.6); font-size: 0.9rem;">
+                    Top 1 Affiliate Excluded: <strong id="val-top1-name" style="color: #f0edf5;">—</strong>
+                </div>
+
+                <!-- Report Footer -->
+                <div class="report-footer">
+                    <span id="report-timestamp">—</span>
+                    <span id="report-source">—</span>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <div id="toast-container"></div>
+    <script src="app.js"></script>
+</body>
+</html>
