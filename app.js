@@ -123,6 +123,9 @@ document.addEventListener('DOMContentLoaded', () => {
         const colRevenue = findCol('Revenue');
         const colCommission = findCol('Commission');
 
+        // Check if the date column actually exists in the data
+        const hasDateColumn = columnKeys.some(k => k.toLowerCase() === 'conversion date');
+
         // Robust date parser: handles "YYYY-MM-DD HH:MM:SS", ISO, and common variants
         function parseDate(val) {
             if (!val) return null;
@@ -139,28 +142,42 @@ document.addEventListener('DOMContentLoaded', () => {
         // Prepare names and dates
         data.forEach(row => {
             row.fullName = `${row[colFirstName] || ''} ${row[colLastName] || ''}`.trim();
-            row.date = parseDate(row[colDate]);
+            row.date = hasDateColumn ? parseDate(row[colDate]) : null;
         });
 
-        // Filter to valid dated rows
-        const validRows = data.filter(r => r.date !== null);
+        let filtered;
+        let start, end;
 
-        if (validRows.length === 0) {
-            const availableCols = columnKeys.join(', ');
-            throw new Error(`No valid dates found. CSV columns detected: [${availableCols}]. Expected a "${colDate}" column with parseable dates.`);
+        if (hasDateColumn) {
+            // Filter to valid dated rows
+            const validRows = data.filter(r => r.date !== null);
+
+            if (validRows.length === 0) {
+                const availableCols = columnKeys.join(', ');
+                throw new Error(`No valid dates found. CSV columns detected: [${availableCols}]. Expected a "${colDate}" column with parseable dates.`);
+            }
+
+            // Date range
+            const dates = validRows.map(r => r.date.getTime());
+            start = new Date(Math.min(...dates));
+            end = new Date(Math.max(...dates));
+
+            // Final window (full days)
+            start.setHours(0,0,0,0);
+            end.setHours(23,59,59,999);
+
+            filtered = validRows.filter(r => r.date >= start && r.date <= end);
+            if (filtered.length === 0) throw new Error("No data found in the CSV after date filtering.");
+        } else {
+            // No date column — use all rows
+            filtered = data.filter(r => r.fullName.length > 0);
+            if (filtered.length === 0) throw new Error("No valid rows found in the CSV.");
+            // Use today as the report date
+            start = new Date();
+            end = new Date();
+            start.setHours(0,0,0,0);
+            end.setHours(23,59,59,999);
         }
-
-        // Date range
-        const dates = validRows.map(r => r.date.getTime());
-        const start = new Date(Math.min(...dates));
-        const end = new Date(Math.max(...dates));
-
-        // Final window (full days)
-        start.setHours(0,0,0,0);
-        end.setHours(23,59,59,999);
-
-        const filtered = validRows.filter(r => r.date >= start && r.date <= end);
-        if (filtered.length === 0) throw new Error("No data found in the CSV after date filtering.");
 
         // Aggregate
         const aggMap = new Map();
