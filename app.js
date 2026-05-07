@@ -97,23 +97,70 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // ── Report Logic (Ported from Python) ──
     function processReport(data, top1NameInput) {
-        // Prepare names and dates
-        data.forEach(row => {
-            row.fullName = `${row['First Name'] || ''} ${row['Last Name'] || ''}`.trim();
-            row.date = new Date(row['Conversion Date']);
+        if (!data || data.length === 0) throw new Error("CSV file is empty or could not be parsed.");
+
+        // Normalize column keys: strip BOM, extra whitespace, and lowercase for matching
+        data = data.map(row => {
+            const cleaned = {};
+            for (const key of Object.keys(row)) {
+                const normalizedKey = key.replace(/^\uFEFF/, '').trim();
+                cleaned[normalizedKey] = row[key];
+            }
+            return cleaned;
         });
 
-        // Filter week (default to entire range in CSV)
-        const dates = data.map(r => r.date).filter(d => !isNaN(d));
+        // Flexible column lookup: find the actual key that matches our expected name
+        const sampleRow = data[0];
+        const columnKeys = Object.keys(sampleRow);
+        const findCol = (target) => {
+            const lower = target.toLowerCase();
+            return columnKeys.find(k => k.toLowerCase() === lower) || target;
+        };
+
+        const colFirstName = findCol('First Name');
+        const colLastName = findCol('Last Name');
+        const colDate = findCol('Conversion Date');
+        const colRevenue = findCol('Revenue');
+        const colCommission = findCol('Commission');
+
+        // Robust date parser: handles "YYYY-MM-DD HH:MM:SS", ISO, and common variants
+        function parseDate(val) {
+            if (!val) return null;
+            const s = String(val).trim();
+            // Try ISO-ish with T separator first
+            let d = new Date(s.replace(' ', 'T'));
+            if (!isNaN(d)) return d;
+            // Try native parse as fallback
+            d = new Date(s);
+            if (!isNaN(d)) return d;
+            return null;
+        }
+
+        // Prepare names and dates
+        data.forEach(row => {
+            row.fullName = `${row[colFirstName] || ''} ${row[colLastName] || ''}`.trim();
+            row.date = parseDate(row[colDate]);
+        });
+
+        // Filter to valid dated rows
+        const validRows = data.filter(r => r.date !== null);
+
+        if (validRows.length === 0) {
+            const availableCols = columnKeys.join(', ');
+            throw new Error(`No valid dates found. CSV columns detected: [${availableCols}]. Expected a "${colDate}" column with parseable dates.`);
+        }
+
+        // Date range
+        const dates = validRows.map(r => r.date.getTime());
         const start = new Date(Math.min(...dates));
         const end = new Date(Math.max(...dates));
-        
+
         // Final window (full days)
         start.setHours(0,0,0,0);
         end.setHours(23,59,59,999);
 
-        const filtered = data.filter(r => r.date >= start && r.date <= end);
-        if (filtered.length === 0) throw new Error("No data found in the CSV.");
+        const filtered = validRows.filter(r => r.date >= start && r.date <= end);
+        if (filtered.length === 0) throw new Error("No data found in the CSV after date filtering.");
 
         // Aggregate
         const aggMap = new Map();
@@ -123,8 +170,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 aggMap.set(name, { name, revenue: 0, commission: 0, conversions: 0 });
             }
             const item = aggMap.get(name);
-            item.revenue += parseFloat(row['Revenue']) || 0;
-            item.commission += parseFloat(row['Commission']) || 0;
+            item.revenue += parseFloat(row[colRevenue]) || 0;
+            item.commission += parseFloat(row[colCommission]) || 0;
             item.conversions += 1;
         });
 
